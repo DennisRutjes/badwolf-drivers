@@ -49,6 +49,8 @@ Usage of ./bin/bw:
     	Internal channel size to use on BQL queries.
   -driver string
     	The storage driver to use {VOLATILE|BWBOLT|BWBADGER}. (default "VOLATILE")
+
+eg. ./bin/bw -badger_db_path=./data -driver=VOLATILE bql 
 ```
 
 For more information about how to use the commands or how the flags work
