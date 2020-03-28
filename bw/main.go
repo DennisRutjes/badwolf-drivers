@@ -43,7 +43,7 @@ var (
 	registeredDrivers map[string]common.StoreGenerator
 
 	// Available flags.
-	driverName = flag.String("driver", "VOLATILE", "The storage driver to use {VOLATILE|BWBOLT}.")
+	driverName = flag.String("driver", "VOLATILE", "The storage driver to use {VOLATILE|BWBOLT|BWBADGER}.")
 
 	bqlChannelSize        = flag.Int("bql_channel_size", 0, "Internal channel size to use on BQL queries.")
 	bulkTripleOpSize      = flag.Int("bulk_triple_op_size", 1000, "Number of triples to use in bulk load operations.")
@@ -77,7 +77,7 @@ func registerDrivers() {
 			closable = bdb
 			return s, err
 		},
-		"BADGER": func() (storage.Store, error) {
+		"BWBADGER": func() (storage.Store, error) {
 			s, bdb, err := bwbadger.New(*badgerDBPath, literal.DefaultBuilder(), *badgerTimeout, *badgerReadOnly)
 			closable = bdb
 			return s, err
