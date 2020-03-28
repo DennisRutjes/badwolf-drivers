@@ -19,19 +19,20 @@ alternatives.
 
 * `bwbolt` stores and indexes all triples using the key value store
   [BoltDB](https://github.com/boltdb/bolt).
+  
+* `bwbadger` stores and indexes all triples using the key value store
+[BadgeDB](https://github.com/dgraph-io/badger).
+
 
 ## Bulding the command line tool
 
-Assumming you have a fully working installation of GO, you just need to get 
-the required packages and build the tool. You can achieve this by typing the 
+Assumming you have a fully working installation of GO, you just need build the main.go. 
+You can achieve this by typing the 
 following commands:
 
 ```
-$ cd /to/some/new/folder
-$ export GOPATH=$PWD
-$ go get github.com/peterh/liner
-$ go get github.com/google/badwolf/...
-$ go get github.com/google/badwolf-drivers/...
+$ cd /this/project/folder
+$  go build -o ./bin/bw bw/main.go
 ```
 
 These commands should not output anything unless something fails. You can 
@@ -61,7 +62,7 @@ You may always want to run all the test for both repos `badwolf` and
 should consider not using the build tool since it may be tainted.
 
 ```
-$ go test -race github.com/google/badwolf/... github.com/google/badwolf-drivers/...
+$ go test -race github.com/google/badwolf/... github.com/DennisRutjes/badwolf-drivers/bwbadger... github.com/DennisRutjes/badwolf-drivers/bwbolt...
 ok  	github.com/google/badwolf/bql/grammar	1.175s
 ok  	github.com/google/badwolf/bql/lexer	1.045s
 ok  	github.com/google/badwolf/bql/planner	1.531s
