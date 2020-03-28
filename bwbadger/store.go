@@ -51,7 +51,6 @@ func New(badgerPath string, lb literal.Builder, timeOut time.Duration, readOnly 
 	if badgerPath == "" {
 		badgerPath = path.Join(os.TempDir(), fmt.Sprintf("%x-%x.bdb", time.Now().UnixNano(), rand.Int()))
 		log.Print("Badger DB path : " + badgerPath)
-
 	}
 
 	opts := badger.DefaultOptions(badgerPath).
