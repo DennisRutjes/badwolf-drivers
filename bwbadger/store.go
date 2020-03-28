@@ -61,7 +61,7 @@ func New(badgerPath string, lb literal.Builder, timeOut time.Duration, readOnly 
 
 	opts := badger.DefaultOptions(badgerPath).
 		WithReadOnly(readOnly).
-		WithSyncWrites(true).
+		WithSyncWrites(false).
 		WithNumVersionsToKeep(1).
 		WithLogger(nil)
 
