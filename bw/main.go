@@ -30,8 +30,9 @@ import (
 	"github.com/google/badwolf/triple/literal"
 	"github.com/peterh/liner"
 
-	"badwolf-drivers/bwbadger"
-	"badwolf-drivers/bwbolt"
+	"github.com/google/badwolf-drivers/bwbolt"
+
+	"github.com/DennisRutjes/badwolf-drivers/bwbadger"
 )
 
 type Closable interface {
@@ -52,12 +53,12 @@ var (
 	// Add your driver flags below.
 
 	// BwBolt driver.
-	boltDBPath   = flag.String("bolt_db_path", "", "The path to the Bolt database to use.")
+	boltDBPath   = flag.String("bolt_db_path", "data_bolt", "The path to the Bolt database to use.")
 	boldTimeout  = flag.Duration("bolt_db_timeout", 3*time.Second, "The duration of the timeout while opening the Bolt database.")
 	boltReadOnly = flag.Bool("bolt_db_read_only", false, "Use te Bolt DB only in read only mode.")
 
 	// BwBadger driver.
-	badgerDBPath   = flag.String("badger_db_path", "data", "The path to the Bolt database to use.")
+	badgerDBPath   = flag.String("badger_db_path", "data_badger", "The path to the Bolt database to use.")
 	badgerTimeout  = flag.Duration("badger_db_timeout", 3*time.Second, "The duration of the timeout while opening the Bolt database.")
 	badgerReadOnly = flag.Bool("badge_db_read_only", false, "Use te Bolt DB only in read only mode.")
 
