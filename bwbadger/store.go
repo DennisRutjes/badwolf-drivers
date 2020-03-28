@@ -46,29 +46,30 @@ type driver struct {
 const graphBucket = "GRAPHS"
 
 // New create a new BadWolf driver using BoltDB as a storage driver.
-func New(bdadgerPath string, lb literal.Builder, timeOut time.Duration, readOnly bool) (storage.Store, *badger.DB, error) {
+func New(badgerPath string, lb literal.Builder, timeOut time.Duration, readOnly bool) (storage.Store, *badger.DB, error) {
 
-	if bdadgerPath == "" {
-		bdadgerPath = path.Join(os.TempDir(), fmt.Sprintf("%x-%x.bdb", time.Now().UnixNano(), rand.Int()))
+	if badgerPath == "" {
+		badgerPath = path.Join(os.TempDir(), fmt.Sprintf("%x-%x.bdb", time.Now().UnixNano(), rand.Int()))
+		log.Print("Badger DB path : " + badgerPath)
 
 	}
 
-	opts := badger.DefaultOptions(bdadgerPath).
+	opts := badger.DefaultOptions(badgerPath).
 		WithReadOnly(readOnly).
 		WithSyncWrites(false).
 		WithNumVersionsToKeep(1).
 		WithLogger(nil)
 
-	opts.Dir, opts.ValueDir = bdadgerPath, bdadgerPath
+	opts.Dir, opts.ValueDir = badgerPath, badgerPath
 	// Open the DB.
 	db, err := badger.Open(opts)
 	if err != nil {
-		return nil, nil, errors.New(fmt.Sprintf("bwbadger driver initialization failure for file %q %v", bdadgerPath, err))
+		return nil, nil, errors.New(fmt.Sprintf("bwbadger driver initialization failure for file %q %v", badgerPath, err))
 	}
 
 	// Return the initilized driver.
 	driver := &driver{
-		path: bdadgerPath,
+		path: badgerPath,
 		db:   db,
 		lb:   lb,
 	}
