@@ -30,9 +30,8 @@ import (
 	"github.com/google/badwolf/triple/literal"
 	"github.com/peterh/liner"
 
-	"github.com/google/badwolf-drivers/bwbolt"
-
 	"github.com/DennisRutjes/badwolf-drivers/bwbadger"
+	"github.com/DennisRutjes/badwolf-drivers/bwbolt"
 )
 
 type Closable interface {
