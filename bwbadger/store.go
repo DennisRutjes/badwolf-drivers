@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"runtime"
 	"sync"
 	"time"
 
@@ -45,9 +46,13 @@ type driver struct {
 
 // graphBucket contains the name of the bucket containing the graphs.
 const graphBucket = "GRAPHS"
+const tripleBucket = "TRIPLES"
 
 // New create a new BadWolf driver using BoltDB as a storage driver.
 func New(badgerPath string, lb literal.Builder, timeOut time.Duration, readOnly bool) (storage.Store, *badger.DB, error) {
+
+	runtime.SetBlockProfileRate(100)
+	runtime.GOMAXPROCS(128)
 
 	if badgerPath == "" {
 		badgerPath = path.Join(os.TempDir(), fmt.Sprintf("%x-%x.bdb", time.Now().UnixNano(), rand.Int()))
@@ -172,36 +177,22 @@ func (d *driver) DeleteGraph(ctx context.Context, id string) error {
 	d.rwmu.Lock()
 	defer d.rwmu.Unlock()
 
-	key := []byte(graphBucket + "/" + id)
+	keyGraphBucket := []byte(graphBucket + "/" + id)
+	keyTripleBucket := []byte(tripleBucket + "/" + id)
 
 	tx := d.db.NewTransaction(true)
 	defer tx.Discard()
 
-	_, err := tx.Get(key)
+	_, err := tx.Get(keyGraphBucket)
 	if err == badger.ErrKeyNotFound {
 		return fmt.Errorf(": graph %q does not exist", id)
 	}
 	keysC := make(chan string)
 
 	go func() {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchSize = 1000
-		opts.PrefetchValues = false
-		opts.Prefix = key
-
+		d.fetchGraphWithKey(keyGraphBucket, keysC)
+		d.fetchGraphWithKey(keyTripleBucket, keysC)
 		defer close(keysC)
-
-		txI := d.db.NewTransaction(true)
-		defer txI.Discard()
-
-		it := txI.NewIterator(opts)
-		defer it.Close()
-
-		for it.Rewind(); it.Valid(); it.Next() {
-			k := it.Item().Key()
-			// println("send to deletion channel :" + string(k))
-			keysC <- string(k)
-		}
 	}()
 
 	txD := d.db.NewTransaction(true)
@@ -220,6 +211,25 @@ func (d *driver) DeleteGraph(ctx context.Context, id string) error {
 		return err
 	}
 	return nil
+}
+
+func (d *driver) fetchGraphWithKey(key []byte, keysC chan string) {
+	opts := badger.DefaultIteratorOptions
+	opts.PrefetchSize = 1000
+	opts.PrefetchValues = false
+	opts.Prefix = key
+
+	txI := d.db.NewTransaction(true)
+	defer txI.Discard()
+
+	it := txI.NewIterator(opts)
+	defer it.Close()
+
+	for it.Rewind(); it.Valid(); it.Next() {
+		k := it.Item().Key()
+		// println("send to deletion channel :" + string(k))
+		keysC <- string(k)
+	}
 }
 
 // GraphNames returns the current available graph names in the store.
@@ -358,10 +368,10 @@ func (g *graph) AddTriples(ctx context.Context, ts []*triple.Triple) error {
 
 	for _, t := range ts {
 		for _, iu := range g.tripleToIndexUpdate(t) {
-			if err := tx.Set(append([]byte(graphBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...), iu.value); err == badger.ErrTxnTooBig {
+			if err := tx.Set(append([]byte(tripleBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...), iu.value); err == badger.ErrTxnTooBig {
 				_ = tx.Commit()
 				tx = g.db.NewTransaction(true)
-				_ = tx.Set(append([]byte(graphBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...), iu.value)
+				_ = tx.Set(append([]byte(tripleBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...), iu.value)
 			} else if err != nil {
 				return err
 			}
@@ -384,10 +394,10 @@ func (g *graph) RemoveTriples(ctx context.Context, ts []*triple.Triple) error {
 
 	for _, t := range ts {
 		for _, iu := range g.tripleToIndexUpdate(t) {
-			if err := tx.Delete(append([]byte(graphBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...)); err == badger.ErrTxnTooBig {
+			if err := tx.Delete(append([]byte(tripleBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...)); err == badger.ErrTxnTooBig {
 				_ = tx.Commit()
 				tx = g.db.NewTransaction(true)
-				_ = tx.Delete(append([]byte(graphBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...))
+				_ = tx.Delete(append([]byte(tripleBucket+"/"+g.id+"/"+iu.idx+"/"), iu.key...))
 			} else if err != nil {
 				return err
 			}
@@ -436,7 +446,7 @@ func (g *graph) Objects(ctx context.Context, s *node.Node, p *predicate.Predicat
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxSPO + "/" + s.String() + "\t" + p.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxSPO + "/" + s.String() + "\t" + p.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -484,7 +494,7 @@ func (g *graph) Subjects(ctx context.Context, p *predicate.Predicate, o *triple.
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxPOS + "/" + p.String() + "\t" + o.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxPOS + "/" + p.String() + "\t" + o.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -532,7 +542,7 @@ func (g *graph) PredicatesForSubject(ctx context.Context, s *node.Node, lo *stor
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxSPO + "/" + s.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxSPO + "/" + s.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -579,7 +589,7 @@ func (g *graph) PredicatesForObject(ctx context.Context, o *triple.Object, lo *s
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxOPS + "/" + o.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxOPS + "/" + o.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -626,7 +636,7 @@ func (g *graph) PredicatesForSubjectAndObject(ctx context.Context, s *node.Node,
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxSOP + "/" + s.String() + "\t" + o.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxSOP + "/" + s.String() + "\t" + o.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -673,7 +683,7 @@ func (g *graph) TriplesForSubject(ctx context.Context, s *node.Node, lo *storage
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxSPO + "/" + s.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxSPO + "/" + s.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -721,7 +731,7 @@ func (g *graph) TriplesForPredicate(ctx context.Context, p *predicate.Predicate,
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxPOS + "/" + p.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxPOS + "/" + p.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -768,7 +778,7 @@ func (g *graph) TriplesForObject(ctx context.Context, o *triple.Object, lo *stor
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxOPS + "/" + o.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxOPS + "/" + o.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -816,7 +826,7 @@ func (g *graph) TriplesForSubjectAndPredicate(ctx context.Context, s *node.Node,
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxSPO + "/" + s.String() + "\t" + p.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxSPO + "/" + s.String() + "\t" + p.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -863,7 +873,7 @@ func (g *graph) TriplesForPredicateAndObject(ctx context.Context, p *predicate.P
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxPOS + "/" + p.String() + "\t" + o.String())
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxPOS + "/" + p.String() + "\t" + o.String())
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
@@ -904,7 +914,7 @@ func (g *graph) TriplesForPredicateAndObject(ctx context.Context, p *predicate.P
 func (g *graph) Exist(ctx context.Context, t *triple.Triple) (bool, error) {
 	res := false
 	err := g.db.View(func(tx *badger.Txn) error {
-		if item, err := tx.Get([]byte(graphBucket + "/" + g.id + "/" + idxSPO + "/" + t.String())); item != nil && err == nil {
+		if item, err := tx.Get([]byte(tripleBucket + "/" + g.id + "/" + idxSPO + "/" + t.String())); item != nil && err == nil {
 			res = true
 		}
 		return nil
@@ -923,7 +933,7 @@ func (g *graph) Triples(ctx context.Context, lo *storage.LookupOptions, trpls ch
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 1000
-		opts.Prefix = []byte(graphBucket + "/" + g.id + "/" + idxSPO + "/")
+		opts.Prefix = []byte(tripleBucket + "/" + g.id + "/" + idxSPO + "/")
 
 		it := tx.NewIterator(opts)
 		defer it.Close()
