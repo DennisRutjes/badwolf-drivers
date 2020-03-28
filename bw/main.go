@@ -23,15 +23,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boltdb/bolt"
-	"github.com/google/badwolf-drivers/bwbolt"
 	"github.com/google/badwolf/storage"
 	"github.com/google/badwolf/storage/memory"
 	"github.com/google/badwolf/tools/vcli/bw/common"
 	"github.com/google/badwolf/tools/vcli/bw/repl"
 	"github.com/google/badwolf/triple/literal"
 	"github.com/peterh/liner"
+
+	"badwolf-drivers/bwbadger"
+	"badwolf-drivers/bwbolt"
 )
+
+type Closable interface {
+	Close() error
+}
 
 var (
 	// drivers contains the registered drivers available for this command line tool.
@@ -51,8 +56,13 @@ var (
 	boldTimeout  = flag.Duration("bolt_db_timeout", 3*time.Second, "The duration of the timeout while opening the Bolt database.")
 	boltReadOnly = flag.Bool("bolt_db_read_only", false, "Use te Bolt DB only in read only mode.")
 
+	// BwBadger driver.
+	badgerDBPath   = flag.String("badger_db_path", "data", "The path to the Bolt database to use.")
+	badgerTimeout  = flag.Duration("badger_db_timeout", 3*time.Second, "The duration of the timeout while opening the Bolt database.")
+	badgerReadOnly = flag.Bool("badge_db_read_only", false, "Use te Bolt DB only in read only mode.")
+
 	// Driver specific variables.
-	db *bolt.DB
+	closable Closable
 )
 
 // Registers the available drivers.
@@ -64,7 +74,12 @@ func registerDrivers() {
 		},
 		"BWBOLT": func() (storage.Store, error) {
 			s, bdb, err := bwbolt.New(*boltDBPath, literal.DefaultBuilder(), *boldTimeout, *boltReadOnly)
-			db = bdb
+			closable = bdb
+			return s, err
+		},
+		"BADGER": func() (storage.Store, error) {
+			s, bdb, err := bwbadger.New(*badgerDBPath, literal.DefaultBuilder(), *badgerTimeout, *badgerReadOnly)
+			closable = bdb
 			return s, err
 		},
 	}
@@ -132,8 +147,8 @@ func main() {
 	registerDrivers()
 	ret := common.Run(*driverName, flag.Args(), registeredDrivers, *bqlChannelSize, *bulkTripleOpSize, *bulkTripleBuildersize, NewAdvancedReadLiner())
 	// Clean up.
-	if db != nil {
-		db.Close()
+	if closable != nil {
+		closable.Close()
 	}
 	os.Exit(ret)
 }

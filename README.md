@@ -47,7 +47,7 @@ Usage of ./bin/bw:
   -bql_channel_size int
     	Internal channel size to use on BQL queries.
   -driver string
-    	The storage driver to use {VOLATILE|BWBOLT}. (default "VOLATILE")
+    	The storage driver to use {VOLATILE|BWBOLT|BWBADGER}. (default "VOLATILE")
 ```
 
 For more information about how to use the commands or how the flags work

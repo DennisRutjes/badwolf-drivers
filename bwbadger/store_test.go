@@ -20,7 +20,7 @@ import (
 func testDriver(t *testing.T) (storage.Store, *badger.DB) {
 	path := path.Join(os.TempDir(), fmt.Sprintf("%x-%x.bdb", time.Now().UnixNano(), rand.Int()))
 	println(path)
-	d, db := New(path, literal.DefaultBuilder(), 3*time.Second, false)
+	d, db, _ := New(path, literal.DefaultBuilder(), 3*time.Second, false)
 
 	return d, db
 }

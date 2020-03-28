@@ -2,8 +2,12 @@ package bwbadger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"math/rand"
+	"os"
+	"path"
 	"sync"
 	"time"
 
@@ -42,24 +46,29 @@ type driver struct {
 const graphBucket = "GRAPHS"
 
 // New create a new BadWolf driver using BoltDB as a storage driver.
-func New(path string, lb literal.Builder, timeOut time.Duration, readOnly bool) (storage.Store, *badger.DB) {
+func New(bdadgerPath string, lb literal.Builder, timeOut time.Duration, readOnly bool) (storage.Store, *badger.DB, error) {
 
-	opts := badger.DefaultOptions(path).
+	if bdadgerPath == "" {
+		bdadgerPath = path.Join(os.TempDir(), fmt.Sprintf("%x-%x.bdb", time.Now().UnixNano(), rand.Int()))
+
+	}
+
+	opts := badger.DefaultOptions(bdadgerPath).
 		WithReadOnly(readOnly).
 		WithSyncWrites(false).
 		WithNumVersionsToKeep(1).
 		WithLogger(nil)
 
-	opts.Dir, opts.ValueDir = path, path
+	opts.Dir, opts.ValueDir = bdadgerPath, bdadgerPath
 	// Open the DB.
 	db, err := badger.Open(opts)
 	if err != nil {
-		log.Fatalf("bwbadger driver initialization failure for file %q %v", path, err)
+		return nil, nil, errors.New(fmt.Sprintf("bwbadger driver initialization failure for file %q %v", bdadgerPath, err))
 	}
 
 	// Return the initilized driver.
 	driver := &driver{
-		path: path,
+		path: bdadgerPath,
 		db:   db,
 		lb:   lb,
 	}
@@ -67,7 +76,7 @@ func New(path string, lb literal.Builder, timeOut time.Duration, readOnly bool) 
 	driver.ctx, driver.cancelFunc = context.WithCancel(context.Background())
 	go driver.runGC()
 
-	return driver, db
+	return driver, db, nil
 }
 
 // Name returns the ID of the backend being used.
