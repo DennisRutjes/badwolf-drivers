@@ -3,6 +3,7 @@ package bwbadger
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"testing"
@@ -14,11 +15,10 @@ import (
 	"github.com/google/badwolf/triple/literal"
 	"github.com/google/badwolf/triple/node"
 	"github.com/google/badwolf/triple/predicate"
-	"github.com/google/uuid"
 )
 
 func testDriver(t *testing.T) (storage.Store, *badger.DB) {
-	path := path.Join(os.TempDir(), fmt.Sprintf("%s.bdb", uuid.New().String()))
+	path := path.Join(os.TempDir(), fmt.Sprintf("%x-%x.bdb", time.Now().UnixNano(), rand.Int()))
 	println(path)
 	d, db, _ := New(path, literal.DefaultBuilder(), 3*time.Second, false)
 

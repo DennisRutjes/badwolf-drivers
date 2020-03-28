@@ -40,6 +40,7 @@ type driver struct {
 	ctx        context.Context
 
 	rwmu sync.RWMutex
+	gt   *time.Ticker
 }
 
 // graphBucket contains the name of the bucket containing the graphs.
@@ -55,7 +56,7 @@ func New(badgerPath string, lb literal.Builder, timeOut time.Duration, readOnly 
 
 	opts := badger.DefaultOptions(badgerPath).
 		WithReadOnly(readOnly).
-		WithSyncWrites(false).
+		WithSyncWrites(true).
 		WithNumVersionsToKeep(1).
 		WithLogger(nil)
 
@@ -71,10 +72,12 @@ func New(badgerPath string, lb literal.Builder, timeOut time.Duration, readOnly 
 		path: badgerPath,
 		db:   db,
 		lb:   lb,
+		gt:   time.NewTicker(badgerGCInterval),
 	}
 
-	driver.ctx, driver.cancelFunc = context.WithCancel(context.Background())
 	go driver.runGC()
+
+	driver.ctx, driver.cancelFunc = context.WithCancel(context.Background())
 
 	return driver, db, nil
 }
@@ -85,10 +88,10 @@ func (d *driver) Name(ctx context.Context) string {
 }
 
 func (d *driver) runGC() {
-	ticker := time.NewTicker(badgerGCInterval)
+
 	for {
 		select {
-		case <-ticker.C:
+		case <-d.gt.C:
 			d.rwmu.Lock()
 			defer d.rwmu.Unlock()
 
