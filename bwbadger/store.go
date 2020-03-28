@@ -97,9 +97,6 @@ func (d *driver) runGC() {
 	for {
 		select {
 		case <-d.gt.C:
-			d.rwmu.Lock()
-			defer d.rwmu.Unlock()
-
 			err := d.db.RunValueLogGC(badgerDiscardRatio)
 			if err != nil {
 				// don't report error when GC didn't result in any cleanup
